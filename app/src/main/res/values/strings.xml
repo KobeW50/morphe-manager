@@ -38,24 +38,50 @@
     <string name="morphe_home_unknown">Unknown</string>
     <string name="morphe_home_timeline">Update history</string>
     <!-- Bundle Management -->
-    <string name="bundle_management_title">Manage Bundles</string>
-    <string name="bundle_management_subtitle">%d bundles installed</string>
-    <string name="bundle_added_at">Added %s</string>
-    <string name="bundle_update_available">Update available</string>
-    <string name="bundle_delete_confirm_message">Delete bundle \"%s\"? This cannot be undone.</string>
-    <string name="disabled">Disabled</string>
-    <string name="move_up">Move up</string>
-    <string name="move_down">Move down</string>
+    <string name="morphe_bundle_management_title">Manage Bundles</string>
+    <string name="morphe_bundle_management_subtitle">%d bundles installed</string>
+    <string name="morphe_bundle_added_at">Added %s</string>
+    <string name="morphe_bundle_update_available">Update available</string>
+    <string name="morphe_bundle_delete_confirm_message">Delete bundle \"%s\"? This cannot be undone.</string>
+    <string name="morphe_bundle_rename_description">Enter a new name</string>
+    <string name="morphe_bundle_rename_duplicate">A bundle with name \"%s\" already exists</string>
+    <string name="morphe_bundle_not_found">Bundle not found</string>
+    <string name="morphe_enabled">Enabled</string>
+    <string name="morphe_disabled">Disabled</string>
+    <string name="morphe_rename">Rename</string>
 
+    <!-- Patch Options Sheet -->
+    <string name="morphe_patch_options">Patch Options</string>
+    <string name="morphe_no_configurable_patches">No configurable patches available</string>
+    <string name="morphe_options_count">%d options</string>
+    <string name="morphe_custom_options_set_count">%d customized</string>
+    <string name="morphe_compatible_with_packages">Compatible with: %s</string>
+    <string name="morphe_configure_options">Configure Options</string>
+    <!-- Patch Options Editor Dialog -->
+    <string name="morphe_configuring_for_package">Configuring for %s</string>
+    <string name="morphe_patch_options_no_available">No options available for this patch</string>
+    <string name="morphe_required">Required</string>
+    <string name="morphe_select">Select</string>
+    <string name="morphe_custom">Custom</string>
+    <string name="morphe_custom_color_picker">Custom color picker</string>
+    <string name="morphe_enter_custom_value">Enter custom value</string>
+    <!-- Color Picker Dialog -->
+    <string name="morphe_hex_color">Hex color</string>
+    <!-- Patches View -->
+    <string name="morphe_patches">Patches</string>
+    <string name="morphe_patches_view_any_package">Any package</string>
+    <string name="morphe_patches_view_any_version">Any version</string>
+    <string name="morphe_less">Less</string>
     <!-- Add Bundle Dialog -->
-    <string name="add_patch_bundle">Add Patch Bundle</string>
-    <string name="remote">Remote</string>
-    <string name="local">Local</string>
-    <string name="remote_source_url">Bundle URL</string>
-    <string name="remote_bundle_description">Enter JSON endpoint URL for remote patch bundle</string>
-    <string name="select_patch_bundle_file">Select Patch Bundle File</string>
-    <string name="change_file">Change File</string>
-    <string name="local_bundle_description">Select a .mpp patch bundle file from storage</string>
+    <string name="morphe_add_patch_bundle">Add Patch Bundle</string>
+    <string name="morphe_remote">Remote</string>
+    <string name="morphe_local">Local</string>
+    <string name="morphe_remote_source_url">Bundle URL</string>
+    <string name="morphe_remote_bundle_description">Enter JSON endpoint URL for remote patch bundle</string>
+    <string name="morphe_select_patch_bundle_file">Select Patch Bundle File</string>
+    <string name="morphe_change_file">Change File</string>
+    <string name="morphe_local_bundle_description">Select a .mpp patch bundle file from storage</string>
+
     <!-- Dialog 1: APK Availability -->
     <string name="morphe_home_apk_availability_dialog_title">Do you have the original unpatched APK?</string>
     <string name="morphe_home_apk_availability_dialog_description_simple">To patch %1$s, you need version %2$s (unpatched)</string>
@@ -166,84 +192,6 @@
     <!-- Update Section -->
     <string name="morphe_update_use_prereleases">Use pre-release versions</string>
     <string name="morphe_update_use_prereleases_description">Get early access to new patches and manager features</string>
-
-    <!-- Patch Options Section -->
-    <string name="morphe_patch_options">Patch options</string>
-    <string name="morphe_patch_options_youtube_description">Theme, branding, header, and Shorts options</string>
-    <string name="morphe_patch_options_youtube_music_description">Theme and branding options</string>
-    <string name="morphe_patch_options_restart_message">Changing patch options requires re-patching the app to take effect</string>
-    <!-- Theme Colors -->
-    <string name="morphe_patch_options_theme_colors">App theme colors</string>
-    <string name="morphe_patch_options_theme_colors_description">Change background color</string>
-    <string name="morphe_patch_options_dark_theme_color">Dark theme background color</string>
-    <string name="morphe_patch_options_dark_theme_color_description">Can be a hex color (#RRGGBB) or a color resource reference</string>
-    <string name="morphe_patch_options_light_theme_color">Light theme background color</string>
-    <string name="morphe_patch_options_light_theme_color_description">Can be a hex color (#RRGGBB) or a color resource reference</string>
-    <string name="morphe_patch_options_icon_instructions_title">Icon format instructions</string>
-    <string name="morphe_patch_options_header_instructions_title">Header format instructions</string>
-    <string name="morphe_patch_options_loading">Loading patch options…</string>
-    <string name="morphe_patch_options_waiting_for_bundle">Wait until the patch bundle is updated</string>
-    <string name="morphe_patch_options_load_error">Failed to load patch options</string>
-    <string name="morphe_patch_options_no_available">No options available for this patch</string>
-    <!-- Color Picker -->
-    <string name="morphe_custom_color">Custom color</string>
-    <string name="morphe_hex_color">Hex color</string>
-    <!-- Custom Branding -->
-    <string name="morphe_patch_options_custom_branding">Custom branding</string>
-    <string name="morphe_patch_options_custom_branding_description">Change the app display name</string>
-    <string name="morphe_patch_options_custom_branding_app_name">App name</string>
-    <string name="morphe_patch_options_custom_branding_app_name_hint">Enter custom name</string>
-    <string name="morphe_patch_options_custom_branding_custom_icon">Custom icon</string>
-    <string name="morphe_patch_options_custom_branding_custom_icon_instruction">"Folder with images to use as a custom icon.
-
-The folder must contain one or more of the following folders, depending on the DPI of the device:
-- mipmap-mdpi
-- mipmap-hdpi
-- mipmap-xhdpi
-- mipmap-xxhdpi
-- mipmap-xxxhdpi
-
-Each of the folders must contain all of the following files:
-morphe_adaptive_background_custom.png
-morphe_adaptive_foreground_custom.png
-
-The image dimensions must be as follows:
-- mipmap-mdpi: 108x108 px
-- mipmap-hdpi: 162x162 px
-- mipmap-xhdpi: 216x216 px
-- mipmap-xxhdpi: 324x324 px
-- mipmap-xxxhdpi: 432x432 px
-
-Optionally, the path contains a \'drawable\' folder with any of the monochrome icon files:
-morphe_adaptive_monochrome_custom.xml
-morphe_notification_icon_custom.xml"</string>
-
-    <!-- Custom Header (YouTube) -->
-    <string name="morphe_patch_options_custom_header">Custom header logo</string>
-    <string name="morphe_patch_options_custom_header_description">Change header logo</string>
-    <string name="morphe_patch_options_custom_header_instruction">"Folder with images to use as a custom header logo.
-
-The folder must contain one or more of the following folders, depending on the DPI of the device:
-- drawable-hdpi
-- drawable-xhdpi
-- drawable-xxhdpi
-- drawable-xxxhdpi
-
-Each of the folders must contain all of the following files:
-morphe_header_custom_light.png
-morphe_header_custom_dark.png
-
-The image dimensions must be as follows:
-- drawable-hdpi: 194x72 px
-- drawable-xhdpi: 258x96 px
-- drawable-xxhdpi: 387x144 px
-- drawable-xxxhdpi: 512x192 px"</string>
-    <!-- Hide Shorts -->
-    <string name="morphe_patch_options_hide_shorts_features">Hide Shorts features</string>
-    <string name="morphe_patch_options_hide_shorts_app_shortcut">Hide Shorts app shortcut</string>
-    <string name="morphe_patch_options_hide_shorts_app_shortcut_description">Remove Shorts from launcher long-press menu</string>
-    <string name="morphe_patch_options_hide_shorts_widget">Hide Shorts widget</string>
-    <string name="morphe_patch_options_hide_shorts_widget_description">Remove Shorts button from launcher widget</string>
 
     <!-- Other strings -->
     <string name="app_name" translatable="false">Morphe</string>

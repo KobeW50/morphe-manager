@@ -32,5 +32,4 @@ val viewModelModule = module {
     viewModelOf(::BundleListViewModel)
     viewModelOf(::ChangelogsViewModel)
     viewModelOf(::PatchProfilesViewModel)
-    viewModelOf(::PatchOptionsViewModel)
 }

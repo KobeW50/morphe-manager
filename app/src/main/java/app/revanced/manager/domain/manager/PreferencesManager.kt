@@ -21,6 +21,7 @@ class PreferencesManager(
         private val PATCH_ACTION_ORDER_DEFAULT =
             PatchSelectionActionKey.DefaultOrder.joinToString(",") { it.storageId }
     }
+    val patchOptions = PatchOptionsPreferencesManager(context)
     val dynamicColor = booleanPreference("dynamic_color", true)
     val pureBlackTheme = booleanPreference("pure_black_theme", false)
     val themePresetSelectionEnabled = booleanPreference("theme_preset_selection_enabled", true)

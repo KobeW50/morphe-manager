@@ -41,6 +41,7 @@ import java.net.HttpURLConnection
 import java.net.SocketTimeoutException
 import java.net.URL
 import java.net.URLEncoder.encode
+import kotlin.collections.associate
 
 /**
  * Bundle update status for snackbar display
@@ -89,6 +90,8 @@ class HomeStates(
     var showChangelogSheet by mutableStateOf(false)
     var showBundleManagementSheet by mutableStateOf(false)
     var showAddBundleDialog by mutableStateOf(false)
+    var showBundlePatchOptionsSheet by mutableStateOf(false)
+    var selectedBundleForOptions by mutableStateOf<PatchBundleSource?>(null)
 
     // Bundle file selection
     var selectedBundleUri by mutableStateOf<Uri?>(null)
@@ -241,14 +244,11 @@ class HomeStates(
      * Start patching process with selected app
      */
     suspend fun startPatchingWithApp(selectedApp: SelectedApp, allowIncompatible: Boolean) {
-        val allBundles = withContext(Dispatchers.IO) {
+        val bundles = withContext(Dispatchers.IO) {
             dashboardViewModel.patchBundleRepository
                 .scopedBundleInfoFlow(selectedApp.packageName, selectedApp.version)
                 .first()
         }
-
-        // Filter to only use default bundle (bundle 0) in Morphe mode to prevent conflicts with custom patch bundles
-        val bundles = allBundles.filter { it.uid == DEFAULT_SOURCE_UID }
 
         val patches = bundles.toPatchSelection(allowIncompatible) { _, patch ->
             patch.include &&
@@ -257,12 +257,20 @@ class HomeStates(
                     (!usingMountInstall || !patch.name.equals("GmsCore support", ignoreCase = true))
         }
 
-        val bundlePatches = bundles.associate { scoped ->
-            scoped.uid to scoped.patches.associateBy { it.name }
-        }
+        // Get saved patch options from storage
+        val options: Map<Int, Map<String, Map<String, Any?>>> = withContext(Dispatchers.IO) {
+            bundles.associate { bundle ->
+                // Get all saved options for this bundle and package
+                val savedOptions = dashboardViewModel.prefs.patchOptions
+                    .getOptionsForBundle(
+                        bundleUid = bundle.uid,
+                        packageName = selectedApp.packageName
+                    )
+                    .first()
 
-        val options = withContext(Dispatchers.IO) {
-            optionsRepository.getOptions(selectedApp.packageName, bundlePatches)
+                // Return bundle UID -> patch options map
+                bundle.uid to savedOptions
+            }
         }
 
         val params = QuickPatchParams(

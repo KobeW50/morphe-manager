@@ -1,32 +1,50 @@
 package app.revanced.manager.domain.manager
 
 import android.content.Context
+import android.util.Log
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.stringPreferencesKey
 import app.revanced.manager.domain.manager.base.BasePreferencesManager
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
 
 /**
- * App type enum for patch options
+ * Serializable data classes for storing patch options
  */
-enum class AppType {
-    YOUTUBE,
-    YOUTUBE_MUSIC;
+@Serializable
+data class PatchOption(
+    val key: String,
+    val value: String // JSON serialized value
+)
 
-    /**
-     * Get the package name for this app type
-     */
-    val packageName: String
-        get() = when (this) {
-            YOUTUBE -> PatchOptionsPreferencesManager.PACKAGE_YOUTUBE
-            YOUTUBE_MUSIC -> PatchOptionsPreferencesManager.PACKAGE_YOUTUBE_MUSIC
-        }
+@Serializable
+data class PatchOptionsData(
+    val patchName: String,
+    val options: List<PatchOption>
+)
+
+@Serializable
+data class BundleOptionsData(
+    val bundleUid: Int,
+    val packageName: String,
+    val patches: List<PatchOptionsData>
+)
+
+private val json = Json {
+    ignoreUnknownKeys = true
+    encodeDefaults = true
+}
+
+private fun bundleOptionsKey(bundleUid: Int, packageName: String): androidx.datastore.preferences.core.Preferences.Key<String> {
+    return stringPreferencesKey("bundle_options_${bundleUid}_${packageName}")
 }
 
 /**
- * Manages patch-specific option values that are applied during patching.
- * This manager only stores the values - the available options are fetched
- * dynamically from the patch bundle repository.
- *
- * Storage keys follow the pattern: {package}_{patchName}_{optionKey}
- * where package is "youtube" or "youtube_music"
+ * Universal patch options manager
+ * Dynamically stores and retrieves patch options for any bundle and package
  */
 class PatchOptionsPreferencesManager(
     context: Context
@@ -37,322 +55,242 @@ class PatchOptionsPreferencesManager(
         const val PACKAGE_YOUTUBE = "com.google.android.youtube"
         const val PACKAGE_YOUTUBE_MUSIC = "com.google.android.apps.youtube.music"
 
-        // Patch names (must match exactly with bundle)
-        const val PATCH_THEME = "Theme"
-        const val PATCH_CUSTOM_BRANDING = "Custom branding"
-        const val PATCH_CHANGE_HEADER = "Change header"
-        const val PATCH_HIDE_SHORTS = "Hide Shorts components"
+        @Volatile
+        private var INSTANCE: PatchOptionsPreferencesManager? = null
 
-        // Option keys (must match exactly with bundle)
-        const val KEY_DARK_THEME_COLOR = "darkThemeBackgroundColor"
-        const val KEY_LIGHT_THEME_COLOR = "lightThemeBackgroundColor"
-        const val KEY_CUSTOM_NAME = "customName"
-        const val KEY_CUSTOM_ICON = "customIcon"
-        const val KEY_CUSTOM_HEADER = "custom"
-        const val KEY_HIDE_SHORTS_APP_SHORTCUT = "hideShortsAppShortcut"
-        const val KEY_HIDE_SHORTS_WIDGET = "hideShortsWidget"
-
-        // Default values
-        const val DEFAULT_DARK_THEME = "@android:color/black"
-        const val DEFAULT_LIGHT_THEME = "@android:color/white"
-
-        // Hide Shorts options
-        const val HIDE_SHORTS_APP_SHORTCUT_TITLE = "Hide Shorts app shortcut"
-        const val HIDE_SHORTS_APP_SHORTCUT_DESC = "Permanently hides the shortcut to open Shorts when long pressing the app icon in your launcher."
-        const val HIDE_SHORTS_WIDGET_TITLE = "Hide Shorts widget"
-        const val HIDE_SHORTS_WIDGET_DESC = "Permanently hides the launcher widget Shorts button."
-
-        // Theme options
-        const val DARK_THEME_COLOR_TITLE = "Dark theme background color"
-        const val DARK_THEME_COLOR_DESC = "Can be a hex color (#RRGGBB) or a color resource reference."
-        const val LIGHT_THEME_COLOR_TITLE = "Light theme background color"
-        const val LIGHT_THEME_COLOR_DESC = "Can be a hex color (#RRGGBB) or a color resource reference."
-
-        // Custom branding icon instructions
-        const val CUSTOM_ICON_INSTRUCTION = """Folder with images to use as a custom icon.
-
-The folder must contain one or more of the following folders, depending on the DPI of the device:
-- mipmap-mdpi
-- mipmap-hdpi
-- mipmap-xhdpi
-- mipmap-xxhdpi
-- mipmap-xxxhdpi
-
-Each of the folders must contain all of the following files:
-morphe_adaptive_background_custom.png
-morphe_adaptive_foreground_custom.png
-
-The image dimensions must be as follows:
-- mipmap-mdpi: 108x108 px
-- mipmap-hdpi: 162x162 px
-- mipmap-xhdpi: 216x216 px
-- mipmap-xxhdpi: 324x324 px
-- mipmap-xxxhdpi: 432x432 px
-
-Optionally, the path contains a 'drawable' folder with any of the monochrome icon files:
-morphe_adaptive_monochrome_custom.xml
-morphe_notification_icon_custom.xml"""
-
-        // Custom header instructions
-        const val CUSTOM_HEADER_INSTRUCTION = """Folder with images to use as a custom header logo.
-
-The folder must contain one or more of the following folders, depending on the DPI of the device:
-- drawable-hdpi
-- drawable-xhdpi
-- drawable-xxhdpi
-- drawable-xxxhdpi
-
-Each of the folders must contain all of the following files:
-morphe_header_custom_light.png
-morphe_header_custom_dark.png 
-
-The image dimensions must be as follows:
-- drawable-hdpi: 194x72 px
-- drawable-xhdpi: 258x96 px
-- drawable-xxhdpi: 387x144 px
-- drawable-xxxhdpi: 512x192 px"""
+        fun getInstance(context: Context): PatchOptionsPreferencesManager {
+            return INSTANCE ?: synchronized(this) {
+                INSTANCE ?: PatchOptionsPreferencesManager(context.applicationContext).also { INSTANCE = it }
+            }
+        }
     }
 
-    // ==================== YouTube Options ====================
+    /**
+     * Get all saved options for a bundle
+     * @param bundleUid The UID of the bundle
+     * @param packageName The package name
+     * @return Flow of map: patch name -> options map
+     */
+    fun getOptionsForBundle(
+        bundleUid: Int,
+        packageName: String
+    ): Flow<Map<String, Map<String, Any?>>> {
+        return dataStore.data.map { preferences ->
+            val key = bundleOptionsKey(bundleUid, packageName)
+            val jsonString = preferences[key] ?: return@map emptyMap()
 
-    // Theme - Dark
-    val darkThemeBackgroundColorYouTube = stringPreference(
-        "${PACKAGE_YOUTUBE}_${PATCH_THEME}_${KEY_DARK_THEME_COLOR}",
-        DEFAULT_DARK_THEME
-    )
+            try {
+                val bundleData = json.decodeFromString<BundleOptionsData>(jsonString)
 
-    // Theme - Light
-    val lightThemeBackgroundColorYouTube = stringPreference(
-        "${PACKAGE_YOUTUBE}_${PATCH_THEME}_${KEY_LIGHT_THEME_COLOR}",
-        DEFAULT_LIGHT_THEME
-    )
-
-    // Custom Branding - App Name
-    val customAppNameYouTube = stringPreference(
-        "${PACKAGE_YOUTUBE}_${PATCH_CUSTOM_BRANDING}_${KEY_CUSTOM_NAME}",
-        ""
-    )
-
-    // Custom Branding - Icon Path
-    val customIconPathYouTube = stringPreference(
-        "${PACKAGE_YOUTUBE}_${PATCH_CUSTOM_BRANDING}_${KEY_CUSTOM_ICON}",
-        ""
-    )
-
-    // Change Header - Custom Header Path
-    val customHeaderPath = stringPreference(
-        "${PACKAGE_YOUTUBE}_${PATCH_CHANGE_HEADER}_${KEY_CUSTOM_HEADER}",
-        ""
-    )
-
-    // Hide Shorts - App Shortcut
-    val hideShortsAppShortcut = booleanPreference(
-        "${PACKAGE_YOUTUBE}_${PATCH_HIDE_SHORTS}_${KEY_HIDE_SHORTS_APP_SHORTCUT}",
-        false
-    )
-
-    // Hide Shorts - Widget
-    val hideShortsWidget = booleanPreference(
-        "${PACKAGE_YOUTUBE}_${PATCH_HIDE_SHORTS}_${KEY_HIDE_SHORTS_WIDGET}",
-        false
-    )
-
-    // ==================== YouTube Music Options ====================
-
-    // Theme - Dark
-    val darkThemeBackgroundColorYouTubeMusic = stringPreference(
-        "${PACKAGE_YOUTUBE_MUSIC}_${PATCH_THEME}_${KEY_DARK_THEME_COLOR}",
-        DEFAULT_DARK_THEME
-    )
-
-    // Custom Branding - App Name
-    val customAppNameYouTubeMusic = stringPreference(
-        "${PACKAGE_YOUTUBE_MUSIC}_${PATCH_CUSTOM_BRANDING}_${KEY_CUSTOM_NAME}",
-        ""
-    )
-
-    // Custom Branding - Icon Path
-    val customIconPathYouTubeMusic = stringPreference(
-        "${PACKAGE_YOUTUBE_MUSIC}_${PATCH_CUSTOM_BRANDING}_${KEY_CUSTOM_ICON}",
-        ""
-    )
+                // Convert to map structure: patch name -> (option key -> value)
+                bundleData.patches.associate { patchData ->
+                    patchData.patchName to patchData.options.associate { option ->
+                        option.key to deserializeValue(option.value)
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("PatchOptionsPrefs", "Failed to parse bundle options", e)
+                emptyMap()
+            }
+        }
+    }
 
     /**
-     * Get the preference value for a specific option.
-     * Returns null if the option is not stored.
+     * Save options for a specific patch in a bundle
+     * @param bundleUid The UID of the bundle
+     * @param patchName The name of the patch
+     * @param options The options to save (key -> value)
+     * @param packageName The package name
      */
-    suspend fun getOptionValue(
-        packageType: String,
+    suspend fun saveOptionsForBundle(
+        bundleUid: Int,
         patchName: String,
-        optionKey: String
-    ): Any? {
-        val prefKey = "${packageType}_${patchName}_${optionKey}"
+        options: Map<String, Any?>,
+        packageName: String
+    ) {
+        dataStore.edit { preferences ->
+            val key = bundleOptionsKey(bundleUid, packageName)
 
-        return when {
-            // YouTube Theme
-            prefKey == "${PACKAGE_YOUTUBE}_${PATCH_THEME}_${KEY_DARK_THEME_COLOR}" ->
-                darkThemeBackgroundColorYouTube.get().takeIf { it.isNotBlank() }
-            prefKey == "${PACKAGE_YOUTUBE}_${PATCH_THEME}_${KEY_LIGHT_THEME_COLOR}" ->
-                lightThemeBackgroundColorYouTube.get().takeIf { it.isNotBlank() }
+            // Get existing data
+            val existingJson = preferences[key]
+            val existingData = existingJson?.let {
+                try {
+                    json.decodeFromString<BundleOptionsData>(it)
+                } catch (e: Exception) {
+                    null
+                }
+            } ?: BundleOptionsData(bundleUid, packageName, emptyList())
 
-            // YouTube Custom Branding
-            prefKey == "${PACKAGE_YOUTUBE}_${PATCH_CUSTOM_BRANDING}_${KEY_CUSTOM_NAME}" ->
-                customAppNameYouTube.get().takeIf { it.isNotBlank() }
-            prefKey == "${PACKAGE_YOUTUBE}_${PATCH_CUSTOM_BRANDING}_${KEY_CUSTOM_ICON}" ->
-                customIconPathYouTube.get().takeIf { it.isNotBlank() }
+            // Update or add patch options
+            val updatedPatches = existingData.patches.toMutableList()
+            val existingPatchIndex = updatedPatches.indexOfFirst { it.patchName == patchName }
 
-            // YouTube Change Header
-            prefKey == "${PACKAGE_YOUTUBE}_${PATCH_CHANGE_HEADER}_${KEY_CUSTOM_HEADER}" ->
-                customHeaderPath.get().takeIf { it.isNotBlank() }
+            val patchOptions = options.map { (k, v) ->
+                PatchOption(k, serializeValue(v))
+            }
 
-            // YouTube Hide Shorts
-            prefKey == "${PACKAGE_YOUTUBE}_${PATCH_HIDE_SHORTS}_${KEY_HIDE_SHORTS_APP_SHORTCUT}" ->
-                hideShortsAppShortcut.get().takeIf { it }
-            prefKey == "${PACKAGE_YOUTUBE}_${PATCH_HIDE_SHORTS}_${KEY_HIDE_SHORTS_WIDGET}" ->
-                hideShortsWidget.get().takeIf { it }
+            val newPatchData = PatchOptionsData(patchName, patchOptions)
 
-            // YouTube Music Theme
-            prefKey == "${PACKAGE_YOUTUBE_MUSIC}_${PATCH_THEME}_${KEY_DARK_THEME_COLOR}" ->
-                darkThemeBackgroundColorYouTubeMusic.get().takeIf { it.isNotBlank() }
+            if (existingPatchIndex >= 0) {
+                updatedPatches[existingPatchIndex] = newPatchData
+            } else {
+                updatedPatches.add(newPatchData)
+            }
 
-            // YouTube Music Custom Branding
-            prefKey == "${PACKAGE_YOUTUBE_MUSIC}_${PATCH_CUSTOM_BRANDING}_${KEY_CUSTOM_NAME}" ->
-                customAppNameYouTubeMusic.get().takeIf { it.isNotBlank() }
-            prefKey == "${PACKAGE_YOUTUBE_MUSIC}_${PATCH_CUSTOM_BRANDING}_${KEY_CUSTOM_ICON}" ->
-                customIconPathYouTubeMusic.get().takeIf { it.isNotBlank() }
-
-            else -> null
+            // Save back
+            val updatedData = existingData.copy(patches = updatedPatches)
+            preferences[key] = json.encodeToString(updatedData)
         }
     }
 
     /**
-     * Export YouTube specific patch options
-     * Format: Map<BundleUid, Map<PatchName, Map<OptionKey, Value>>>
+     * Reset options for a specific patch in a bundle
+     * @param bundleUid The UID of the bundle
+     * @param patchName The name of the patch
+     * @param packageName The package name
      */
-    suspend fun exportYouTubePatchOptions(): Map<Int, Map<String, Map<String, Any?>>> {
-        return buildMap {
-            // Note: Bundle UID 0 is the default Morphe bundle
-            val bundleOptions = mutableMapOf<String, MutableMap<String, Any?>>()
+    suspend fun resetOptionsForBundle(
+        bundleUid: Int,
+        patchName: String,
+        packageName: String
+    ) {
+        dataStore.edit { preferences ->
+            val key = bundleOptionsKey(bundleUid, packageName)
+            val existingJson = preferences[key] ?: return@edit
 
-            // Theme patch options for YouTube
-            val themeOptionsYouTube = mutableMapOf<String, Any?>()
-            darkThemeBackgroundColorYouTube.get().takeIf { it.isNotBlank() && it != DEFAULT_DARK_THEME }?.let {
-                themeOptionsYouTube[KEY_DARK_THEME_COLOR] = it
-            }
-            lightThemeBackgroundColorYouTube.get().takeIf { it.isNotBlank() && it != DEFAULT_LIGHT_THEME }?.let {
-                themeOptionsYouTube[KEY_LIGHT_THEME_COLOR] = it
-            }
-            if (themeOptionsYouTube.isNotEmpty()) {
-                bundleOptions[PATCH_THEME] = themeOptionsYouTube
+            val existingData = try {
+                json.decodeFromString<BundleOptionsData>(existingJson)
+            } catch (e: Exception) {
+                return@edit
             }
 
-            // Custom Branding patch options for YouTube
-            val brandingOptionsYouTube = mutableMapOf<String, Any?>()
-            customAppNameYouTube.get().takeIf { it.isNotBlank() }?.let {
-                brandingOptionsYouTube[KEY_CUSTOM_NAME] = it
-            }
-            customIconPathYouTube.get().takeIf { it.isNotBlank() }?.let {
-                brandingOptionsYouTube[KEY_CUSTOM_ICON] = it
-            }
-            if (brandingOptionsYouTube.isNotEmpty()) {
-                bundleOptions[PATCH_CUSTOM_BRANDING] = brandingOptionsYouTube
-            }
+            val updatedPatches = existingData.patches.filter { it.patchName != patchName }
 
-            // Change Header patch options
-            customHeaderPath.get().takeIf { it.isNotBlank() }?.let {
-                bundleOptions[PATCH_CHANGE_HEADER] = mutableMapOf(
-                    KEY_CUSTOM_HEADER to it
-                )
-            }
-
-            // Hide Shorts patch options
-            val shortsOptions = mutableMapOf<String, Any?>()
-            if (hideShortsAppShortcut.get()) {
-                shortsOptions[KEY_HIDE_SHORTS_APP_SHORTCUT] = true
-            }
-            if (hideShortsWidget.get()) {
-                shortsOptions[KEY_HIDE_SHORTS_WIDGET] = true
-            }
-            if (shortsOptions.isNotEmpty()) {
-                bundleOptions[PATCH_HIDE_SHORTS] = shortsOptions
-            }
-
-            // Bundle ID 0 = default Morphe bundle
-            if (bundleOptions.isNotEmpty()) {
-                put(0, bundleOptions)
+            if (updatedPatches.isEmpty()) {
+                // Remove entire bundle key if no patches left
+                preferences.remove(key)
+            } else {
+                val updatedData = existingData.copy(patches = updatedPatches)
+                preferences[key] = json.encodeToString(updatedData)
             }
         }
     }
 
     /**
-     * Export YouTube Music specific patch options
-     * Format: Map<BundleUid, Map<PatchName, Map<OptionKey, Value>>>
+     * Get options for a specific patch in a bundle
+     * @param bundleUid The UID of the bundle
+     * @param patchName The name of the patch
+     * @param packageName The package name
+     * @return Flow of options map or null if not customized
      */
-    suspend fun exportYouTubeMusicPatchOptions(): Map<Int, Map<String, Map<String, Any?>>> {
-        return buildMap {
-            val bundleOptions = mutableMapOf<String, MutableMap<String, Any?>>()
-
-            // Theme patch options for YouTube Music
-            val themeOptionsYouTubeMusic = mutableMapOf<String, Any?>()
-            darkThemeBackgroundColorYouTubeMusic.get().takeIf { it.isNotBlank() && it != DEFAULT_DARK_THEME }?.let {
-                themeOptionsYouTubeMusic[KEY_DARK_THEME_COLOR] = it
-            }
-            if (themeOptionsYouTubeMusic.isNotEmpty()) {
-                bundleOptions[PATCH_THEME] = themeOptionsYouTubeMusic
-            }
-
-            // Custom Branding patch options for YouTube Music
-            val brandingOptionsYouTubeMusic = mutableMapOf<String, Any?>()
-            customAppNameYouTubeMusic.get().takeIf { it.isNotBlank() }?.let {
-                brandingOptionsYouTubeMusic[KEY_CUSTOM_NAME] = it
-            }
-            customIconPathYouTubeMusic.get().takeIf { it.isNotBlank() }?.let {
-                brandingOptionsYouTubeMusic[KEY_CUSTOM_ICON] = it
-            }
-            if (brandingOptionsYouTubeMusic.isNotEmpty()) {
-                bundleOptions[PATCH_CUSTOM_BRANDING] = brandingOptionsYouTubeMusic
-            }
-
-            // Bundle ID 0 = default Morphe bundle
-            if (bundleOptions.isNotEmpty()) {
-                put(0, bundleOptions)
-            }
+    fun getOptionsForPatchInBundle(
+        bundleUid: Int,
+        patchName: String,
+        packageName: String
+    ): Flow<Map<String, Any?>?> {
+        return getOptionsForBundle(bundleUid, packageName).map { allOptions ->
+            allOptions[patchName]
         }
     }
 
     /**
-     * Reset all patch options to defaults
+     * Clear all options for a bundle
+     * @param bundleUid The UID of the bundle
+     * @param packageName The package name
      */
-    suspend fun resetToDefaults() = edit {
-        // YouTube
-        darkThemeBackgroundColorYouTube.value = DEFAULT_DARK_THEME
-        lightThemeBackgroundColorYouTube.value = DEFAULT_LIGHT_THEME
-        customAppNameYouTube.value = ""
-        customIconPathYouTube.value = ""
-        customHeaderPath.value = ""
-        hideShortsAppShortcut.value = false
-        hideShortsWidget.value = false
-
-        // YouTube Music
-        darkThemeBackgroundColorYouTubeMusic.value = DEFAULT_DARK_THEME
-        customAppNameYouTubeMusic.value = ""
-        customIconPathYouTubeMusic.value = ""
+    suspend fun clearOptionsForBundle(
+        bundleUid: Int,
+        packageName: String
+    ) {
+        dataStore.edit { preferences ->
+            val key = bundleOptionsKey(bundleUid, packageName)
+            preferences.remove(key)
+        }
     }
-}
 
-/**
- * Gets localized text if it matches original English text,
- * otherwise returns the custom text from patch
- */
-fun getLocalizedOrCustomText(
-    context: Context,
-    currentText: String,
-    originalEnglishText: String,
-    localizedResId: Int
-): String {
-    return if (currentText == originalEnglishText) {
-        context.getString(localizedResId)
-    } else {
-        currentText
+    /**
+     * Export all patch options for a specific package across all bundles
+     * @param packageName The package name
+     * @return Map of bundle UID -> (patch name -> options)
+     */
+    suspend fun exportAllOptionsForPackage(
+        packageName: String
+    ): Map<Int, Map<String, Map<String, Any?>>> {
+        val allPreferences = dataStore.data.map { it }.first()
+        val result = mutableMapOf<Int, Map<String, Map<String, Any?>>>()
+
+        allPreferences.asMap().forEach { (key, value) ->
+            // Check if this is a bundle options key for the specified package
+            val keyString = key.name
+            if (keyString.startsWith("bundle_options_") && keyString.endsWith("_$packageName")) {
+                // Extract bundle UID from key
+                val parts = keyString.removePrefix("bundle_options_").removeSuffix("_$packageName")
+                val bundleUid = parts.toIntOrNull() ?: return@forEach
+
+                try {
+                    val bundleData = json.decodeFromString<BundleOptionsData>(value as String)
+                    val patchOptions = bundleData.patches.associate { patchData ->
+                        patchData.patchName to patchData.options.associate { option ->
+                            option.key to deserializeValue(option.value)
+                        }
+                    }
+                    result[bundleUid] = patchOptions
+                } catch (e: Exception) {
+                    Log.e("PatchOptionsPrefs", "Failed to parse bundle $bundleUid options", e)
+                }
+            }
+        }
+
+        return result
+    }
+
+    /**
+     * Reset all patch options for all bundles
+     */
+    suspend fun resetAllOptions() {
+        dataStore.edit { preferences ->
+            val keysToRemove = preferences.asMap().keys.filter {
+                it.name.startsWith("bundle_options_")
+            }
+            keysToRemove.forEach { preferences.remove(it) }
+        }
+    }
+
+    /**
+     * Serialize value to string for storage
+     */
+    private fun serializeValue(value: Any?): String {
+        return when (value) {
+            null -> "null"
+            is Boolean -> "boolean:$value"
+            is Int -> "int:$value"
+            is Long -> "long:$value"
+            is Float -> "float:$value"
+            is Double -> "double:$value"
+            is String -> "string:$value"
+            else -> "string:${value.toString()}"
+        }
+    }
+
+    /**
+     * Deserialize value from string
+     */
+    private fun deserializeValue(serialized: String): Any? {
+        if (serialized == "null") return null
+
+        val parts = serialized.split(":", limit = 2)
+        if (parts.size != 2) return serialized
+
+        val (type, value) = parts
+
+        return when (type) {
+            "boolean" -> value.toBoolean()
+            "int" -> value.toIntOrNull()
+            "long" -> value.toLongOrNull()
+            "float" -> value.toFloatOrNull()
+            "double" -> value.toDoubleOrNull()
+            "string" -> value
+            else -> value
+        }
     }
 }

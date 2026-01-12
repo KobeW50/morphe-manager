@@ -20,21 +20,26 @@ import app.revanced.manager.data.platform.NetworkInfo
 import app.revanced.manager.domain.bundles.PatchBundleSource.Extensions.asRemoteOrNull
 import app.revanced.manager.domain.bundles.RemotePatchBundle
 import app.revanced.manager.domain.installer.RootInstaller
+import app.revanced.manager.domain.manager.PatchOptionsPreferencesManager
 import app.revanced.manager.domain.manager.PreferencesManager
 import app.revanced.manager.domain.repository.DownloaderPluginRepository
 import app.revanced.manager.domain.repository.PatchBundleRepository
 import app.revanced.manager.domain.repository.PatchBundleRepository.Companion.DEFAULT_SOURCE_UID
 import app.revanced.manager.network.api.ReVancedAPI
+import app.revanced.manager.patcher.patch.PatchInfo
 import app.revanced.manager.util.PM
 import app.revanced.manager.util.uiSafe
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileNotFoundException
+import kotlin.collections.emptyMap
 
 class DashboardViewModel(
     private val app: Application,
@@ -238,4 +243,72 @@ class DashboardViewModel(
         val apiBundle = sources.firstOrNull() as? RemotePatchBundle
         apiBundle?.clearChangelogCache()
     }
+
+    /**
+     * Returns saved patch options for a specific bundle
+     * @param bundleUid The UID of the bundle
+     * @param packageName The package name
+     * @return Flow of map: patch name -> saved options
+     */
+    fun getSavedOptionsForBundle(
+        bundleUid: Int,
+        packageName: String
+    ): Flow<Map<String, Map<String, Any?>>> {
+        return prefs.patchOptions.getOptionsForBundle(bundleUid, packageName)
+    }
+
+    /**
+     * Save patch options for a specific bundle
+     * @param bundleUid The UID of the bundle
+     * @param patchName The name of the patch
+     * @param options The options to save
+     * @param packageName The package name
+     */
+    suspend fun savePatchOptionsForBundle(
+        bundleUid: Int,
+        patchName: String,
+        options: Map<String, Any?>,
+        packageName: String
+    ) {
+        prefs.patchOptions.saveOptionsForBundle(bundleUid, patchName, options, packageName)
+    }
+
+    /**
+     * Reset patch options to defaults for a specific bundle
+     * @param bundleUid The UID of the bundle
+     * @param patchName The name of the patch
+     * @param packageName The package name
+     */
+    suspend fun resetPatchOptionsForBundle(
+        bundleUid: Int,
+        patchName: String,
+        packageName: String
+    ) {
+        prefs.patchOptions.resetOptionsForBundle(bundleUid, patchName, packageName)
+    }
+
+    /**
+     * Get options for a specific patch in a bundle
+     * Used during patching to load the correct options
+     */
+    fun getOptionsForPatchInBundle(
+        bundleUid: Int,
+        patchName: String,
+        packageName: String
+    ): Flow<Map<String, Any?>?> {
+        return prefs.patchOptions.getOptionsForPatchInBundle(bundleUid, patchName, packageName)
+    }
+
+    /**
+     * Clear all options for a bundle
+     * @param bundleUid The UID of the bundle
+     * @param packageName The package name
+     */
+    suspend fun clearOptionsForBundle(
+        bundleUid: Int,
+        packageName: String
+    ) {
+        prefs.patchOptions.clearOptionsForBundle(bundleUid, packageName)
+    }
 }
+

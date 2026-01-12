@@ -246,16 +246,17 @@ fun HomeDialogs(
                     }
                 }
             },
-            onReorder = { order ->
+            onRename = { bundle, newName ->
                 scope.launch {
-                    state.dashboardViewModel.patchBundleRepository.reorderBundles(order)
+                    state.dashboardViewModel.patchBundleRepository.renameBundle(bundle, newName)
                 }
             },
-            onOpenInBrowser = { url ->
-                try {
-                    uriHandler.openUri(url)
-                } catch (e: Exception) {
-                    context.toast(context.getString(R.string.morphe_home_failed_to_open_url))
+            onPatchOptionsClick = { bundle ->
+                state.showBundleManagementSheet = false
+                state.selectedBundleForOptions = bundle
+                scope.launch {
+                    delay(300)
+                    state.showBundlePatchOptionsSheet = true
                 }
             }
         )
@@ -277,14 +278,25 @@ fun HomeDialogs(
                 state.selectedBundleUri = null
                 state.selectedBundlePath = null
             },
-            onRemoteSubmit = { url, autoUpdate ->
+            onRemoteSubmit = { url ->
                 state.showAddBundleDialog = false
-                state.dashboardViewModel.createRemoteSource(url, autoUpdate)
+                state.dashboardViewModel.createRemoteSource(url, true)
             },
             onLocalPick = {
                 state.openBundlePicker()
             },
             selectedLocalPath = state.selectedBundlePath
+        )
+    }
+
+    // Bundle patch options sheet
+    if (state.showBundlePatchOptionsSheet && state.selectedBundleForOptions != null) {
+        HomeBundlePatchOptionsSheet(
+            bundle = state.selectedBundleForOptions!!,
+            onDismiss = {
+                state.showBundlePatchOptionsSheet = false
+                state.selectedBundleForOptions = null
+            }
         )
     }
 }

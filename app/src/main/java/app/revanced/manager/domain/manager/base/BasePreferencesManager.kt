@@ -13,9 +13,42 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.runBlocking
 
-abstract class BasePreferencesManager(private val context: Context, name: String) {
-    private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = name)
-    protected val dataStore get() = context.dataStore
+// Global cache for DataStore instances to prevent multiple instances for same file
+private val dataStoreCache = mutableMapOf<String, DataStore<Preferences>>()
+private val dataStoreLock = Any()
+
+// Stub KProperty for DataStore delegate
+private object KProperty0Stub : kotlin.reflect.KProperty0<DataStore<Preferences>> {
+    override val name: String = "dataStore"
+    override fun get(): DataStore<Preferences> = throw UnsupportedOperationException()
+    override val annotations: List<Annotation> = emptyList()
+    override val isAbstract: Boolean = false
+    override val isFinal: Boolean = true
+    override val isOpen: Boolean = false
+    override val isSuspend: Boolean = false
+    override val isConst: Boolean = false
+    override val isLateinit: Boolean = false
+    override val returnType: kotlin.reflect.KType
+        get() = throw UnsupportedOperationException()
+    override val typeParameters: List<kotlin.reflect.KTypeParameter> = emptyList()
+    override val visibility: kotlin.reflect.KVisibility? = null
+    override val parameters: List<kotlin.reflect.KParameter> = emptyList()
+    override val getter: kotlin.reflect.KProperty0.Getter<DataStore<Preferences>>
+        get() = throw UnsupportedOperationException()
+    override fun getDelegate(): Any = throw UnsupportedOperationException()
+    override fun invoke(): DataStore<Preferences> = throw UnsupportedOperationException()
+    override fun call(vararg args: Any?): DataStore<Preferences> = throw UnsupportedOperationException()
+    override fun callBy(args: Map<kotlin.reflect.KParameter, Any?>): DataStore<Preferences> = throw UnsupportedOperationException()
+}
+
+abstract class BasePreferencesManager(context: Context, name: String) {
+    protected val dataStore: DataStore<Preferences> = synchronized(dataStoreLock) {
+        dataStoreCache.getOrPut(name) {
+            val appContext = context.applicationContext
+            val property = preferencesDataStore(name = name)
+            property.getValue(appContext, KProperty0Stub)
+        }
+    }
 
     suspend fun preload() {
         dataStore.data.first()

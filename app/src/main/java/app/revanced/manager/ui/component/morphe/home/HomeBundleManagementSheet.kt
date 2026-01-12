@@ -12,7 +12,6 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.OpenInNew
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.outlined.*
@@ -37,7 +36,7 @@ import app.revanced.manager.ui.component.morphe.utils.getRelativeTimeString
 import org.koin.compose.koinInject
 
 /**
- * Bottom sheet for managing patch bundles with reordering via Up/Down buttons
+ * Bottom sheet for managing patch bundles
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -49,8 +48,8 @@ fun HomeBundleManagementSheet(
     onUpdate: (PatchBundleSource) -> Unit,
     onPatchesClick: (PatchBundleSource) -> Unit,
     onVersionClick: (PatchBundleSource) -> Unit,
-    onReorder: (List<Int>) -> Unit,
-    onOpenInBrowser: (String) -> Unit
+    onRename: (PatchBundleSource, String) -> Unit,
+    onPatchOptionsClick: (PatchBundleSource) -> Unit
 ) {
     val patchBundleRepository: PatchBundleRepository = koinInject()
 
@@ -58,23 +57,12 @@ fun HomeBundleManagementSheet(
     val patchCounts by patchBundleRepository.patchCountsFlow.collectAsStateWithLifecycle(emptyMap())
     val manualUpdateInfo by patchBundleRepository.manualUpdateInfo.collectAsStateWithLifecycle(emptyMap())
 
-    val workingOrder = remember(sources) { sources.toMutableStateList() }
-
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val lazyListState = rememberLazyListState()
 
     var bundleToDelete by remember { mutableStateOf<PatchBundleSource?>(null) }
-
-    // Save order on dismiss
-    DisposableEffect(Unit) {
-        onDispose {
-            val newOrder = workingOrder.map { it.uid }
-            val originalOrder = sources.map { it.uid }
-            if (newOrder != originalOrder) {
-                onReorder(newOrder)
-            }
-        }
-    }
+    var bundleToRename by remember { mutableStateOf<PatchBundleSource?>(null) }
+    var renameText by remember { mutableStateOf("") }
 
     ModalBottomSheet(
         onDismissRequest = onDismissRequest,
@@ -104,7 +92,7 @@ fun HomeBundleManagementSheet(
                     )
                     Text(
                         text = stringResource(
-                            R.string.bundle_management_subtitle,
+                            R.string.morphe_bundle_management_subtitle,
                             sources.size
                         ),
                         style = MaterialTheme.typography.bodySmall,
@@ -127,12 +115,12 @@ fun HomeBundleManagementSheet(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Bundle cards with Up/Down buttons
+            // Bundle cards
             LazyColumn(
                 state = lazyListState,
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                itemsIndexed(workingOrder, key = { _, bundle -> bundle.uid }) { index, bundle ->
+                itemsIndexed(sources, key = { _, bundle -> bundle.uid }) { index, bundle ->
                     BundleManagementCard(
                         bundle = bundle,
                         patchCount = patchCounts[bundle.uid] ?: 0,
@@ -142,21 +130,11 @@ fun HomeBundleManagementSheet(
                         onUpdate = { onUpdate(bundle) },
                         onPatchesClick = { onPatchesClick(bundle) },
                         onVersionClick = { onVersionClick(bundle) },
-                        onOpenInBrowser = onOpenInBrowser,
-                        onMoveUp = {
-                            if (index > 0) {
-                                workingOrder.removeAt(index)
-                                workingOrder.add(index - 1, bundle)
-                            }
+                        onRename = {
+                            bundleToRename = bundle
+                            renameText = bundle.name
                         },
-                        onMoveDown = {
-                            if (index < workingOrder.size - 1) {
-                                workingOrder.removeAt(index)
-                                workingOrder.add(index + 1, bundle)
-                            }
-                        },
-                        canMoveUp = index > 0,
-                        canMoveDown = index < workingOrder.size - 1
+                        onPatchOptionsClick = { onPatchOptionsClick(bundle) }
                     )
                 }
             }
@@ -171,6 +149,24 @@ fun HomeBundleManagementSheet(
             onConfirm = {
                 onDelete(bundleToDelete!!)
                 bundleToDelete = null
+            }
+        )
+    }
+
+    // Rename dialog
+    if (bundleToRename != null) {
+        BundleRenameDialog(
+            bundle = bundleToRename!!,
+            currentName = renameText,
+            onNameChange = { renameText = it },
+            onDismiss = {
+                bundleToRename = null
+                renameText = ""
+            },
+            onConfirm = { newName ->
+                onRename(bundleToRename!!, newName)
+                bundleToRename = null
+                renameText = ""
             }
         )
     }
@@ -189,11 +185,8 @@ private fun BundleManagementCard(
     onUpdate: () -> Unit,
     onPatchesClick: () -> Unit,
     onVersionClick: () -> Unit,
-    onOpenInBrowser: (String) -> Unit,
-    onMoveUp: () -> Unit,
-    onMoveDown: () -> Unit,
-    canMoveUp: Boolean,
-    canMoveDown: Boolean
+    onRename: () -> Unit,
+    onPatchOptionsClick: () -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
     val rotationAngle by animateFloatAsState(
@@ -217,45 +210,6 @@ private fun BundleManagementCard(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Reorder buttons (Up/Down arrows)
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(0.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    IconButton(
-                        onClick = onMoveUp,
-                        enabled = canMoveUp,
-                        modifier = Modifier.size(32.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Outlined.KeyboardArrowUp,
-                            contentDescription = stringResource(R.string.move_up),
-                            tint = if (canMoveUp) {
-                                MaterialTheme.colorScheme.onSurfaceVariant
-                            } else {
-                                MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
-                            },
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                    IconButton(
-                        onClick = onMoveDown,
-                        enabled = canMoveDown,
-                        modifier = Modifier.size(32.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Outlined.KeyboardArrowDown,
-                            contentDescription = stringResource(R.string.move_down),
-                            tint = if (canMoveDown) {
-                                MaterialTheme.colorScheme.onSurfaceVariant
-                            } else {
-                                MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
-                            },
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                }
-
                 // Bundle icon
                 Surface(
                     shape = CircleShape,
@@ -286,18 +240,37 @@ private fun BundleManagementCard(
 
                 // Bundle info
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = bundle.displayTitle,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        color = if (bundle.enabled) {
-                            MaterialTheme.colorScheme.onSurface
-                        } else {
-                            MaterialTheme.colorScheme.outline
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = bundle.displayTitle,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            color = if (bundle.enabled) {
+                                MaterialTheme.colorScheme.onSurface
+                            } else {
+                                MaterialTheme.colorScheme.outline
+                            },
+                            modifier = Modifier.weight(1f, fill = false)
+                        )
+
+                        // Rename button
+                        IconButton(
+                            onClick = onRename,
+                            modifier = Modifier.size(24.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.Edit,
+                                contentDescription = stringResource(R.string.morphe_rename),
+                                modifier = Modifier.size(16.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
-                    )
+                    }
 
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -324,7 +297,7 @@ private fun BundleManagementCard(
                         if (!bundle.enabled) {
                             Text("•", style = MaterialTheme.typography.bodySmall)
                             Text(
-                                text = stringResource(R.string.disabled),
+                                text = stringResource(R.string.morphe_disabled),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.outline
                             )
@@ -373,72 +346,29 @@ private fun BundleManagementCard(
                         )
                     }
 
-                    // Dates
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        bundle.createdAt?.let { timestamp ->
-                            Row(
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Outlined.CalendarToday,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(16.dp),
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Text(
-                                    text = stringResource(
-                                        R.string.bundle_added_at,
-                                        getRelativeTimeString(timestamp)
-                                    ),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-
-                        bundle.updatedAt?.let { timestamp ->
-                            Row(
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Outlined.Schedule,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(16.dp),
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Text(
-                                    text = stringResource(
-                                        R.string.bundle_updated_at,
-                                        getRelativeTimeString(timestamp)
-                                    ),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
+                    // Dates in one line
+                    val createdText = bundle.createdAt?.let {
+                        stringResource(R.string.morphe_bundle_added_at, getRelativeTimeString(it))
+                    }
+                    val updatedText = bundle.updatedAt?.let {
+                        stringResource(R.string.bundle_updated_at, getRelativeTimeString(it))
                     }
 
-                    // Open in browser button (for remote bundles)
-                    if (bundle is RemotePatchBundle) {
-                        OutlinedButton(
-                            onClick = {
-                                val url = updateInfo?.pageUrl ?: bundle.endpoint
-                                onOpenInBrowser(url)
-                            },
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(8.dp)
+                    if (createdText != null || updatedText != null) {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(
-                                imageVector = Icons.AutoMirrored.Outlined.OpenInNew,
+                                imageVector = Icons.Outlined.Schedule,
                                 contentDescription = null,
-                                modifier = Modifier.size(18.dp)
+                                modifier = Modifier.size(16.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
                             )
-                            Spacer(Modifier.width(8.dp))
                             Text(
-                                text = stringResource(R.string.morphe_home_open_in_browser),
-                                style = MaterialTheme.typography.labelMedium
+                                text = listOfNotNull(createdText, updatedText).joinToString(" • "),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
@@ -463,7 +393,7 @@ private fun BundleManagementCard(
                                     tint = MaterialTheme.colorScheme.onTertiaryContainer
                                 )
                                 Text(
-                                    text = stringResource(R.string.bundle_update_available),
+                                    text = stringResource(R.string.morphe_bundle_update_available),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onTertiaryContainer
                                 )
@@ -473,12 +403,30 @@ private fun BundleManagementCard(
 
                     HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
 
+                    // Patch Options button
+                    OutlinedButton(
+                        onClick = onPatchOptionsClick,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Settings,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            text = stringResource(R.string.morphe_patch_options),
+                            style = MaterialTheme.typography.labelMedium
+                        )
+                    }
+
                     // Actions
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        // Update button (for remote bundles)
+                        // Update button
                         if (bundle is RemotePatchBundle) {
                             BundleActionButton(
                                 icon = Icons.Outlined.Refresh,
@@ -504,7 +452,7 @@ private fun BundleManagementCard(
                             modifier = Modifier.weight(1f)
                         )
 
-                        // Delete button (only for non-default bundles)
+                        // Delete button
                         if (!bundle.isDefault) {
                             BundleActionButton(
                                 icon = Icons.Outlined.Delete,
@@ -600,38 +548,6 @@ private fun BundleActionButton(
         Text(
             text = text,
             style = MaterialTheme.typography.labelMedium
-        )
-    }
-}
-
-@Composable
-private fun BundleDeleteConfirmDialog(
-    bundle: PatchBundleSource,
-    onDismiss: () -> Unit,
-    onConfirm: () -> Unit
-) {
-    app.revanced.manager.ui.component.morphe.shared.MorpheDialog(
-        onDismissRequest = onDismiss,
-        title = stringResource(R.string.delete),
-        footer = {
-            app.revanced.manager.ui.component.morphe.shared.MorpheDialogButtonRow(
-                primaryText = stringResource(R.string.delete),
-                onPrimaryClick = onConfirm,
-                isPrimaryDestructive = true,
-                secondaryText = stringResource(android.R.string.cancel),
-                onSecondaryClick = onDismiss
-            )
-        }
-    ) {
-        val secondaryColor = app.revanced.manager.ui.component.morphe.shared.LocalDialogSecondaryTextColor.current
-
-        Text(
-            text = stringResource(
-                R.string.bundle_delete_confirm_message,
-                bundle.displayTitle
-            ),
-            style = MaterialTheme.typography.bodyLarge,
-            color = secondaryColor
         )
     }
 }

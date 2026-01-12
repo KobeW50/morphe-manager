@@ -54,8 +54,7 @@ fun MorpheSettingsScreen(
     themeViewModel: MorpheThemeSettingsViewModel = koinViewModel(),
     downloadsViewModel: DownloadsViewModel = koinViewModel(),
     importExportViewModel: ImportExportViewModel = koinViewModel(),
-    dashboardViewModel: DashboardViewModel = koinViewModel(),
-    patchOptionsViewModel: PatchOptionsViewModel = koinViewModel()
+    dashboardViewModel: DashboardViewModel = koinViewModel()
 ) {
     val context = LocalContext.current
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior(rememberTopAppBarState())
@@ -208,19 +207,8 @@ fun MorpheSettingsScreen(
                                 dashboardViewModel.updateMorpheBundleWithChangelogClear()
                                 // Check for manager updates
                                 dashboardViewModel.checkForManagerUpdates()
-                                patchOptionsViewModel.refresh()
                             }
                         }
-                    )
-
-                    // Patch Options Section
-                    SettingsSectionHeader(
-                        icon = Icons.Outlined.Tune,
-                        title = stringResource(R.string.morphe_patch_options)
-                    )
-                    PatchOptionsSection(
-                        patchOptionsPrefs = patchOptionsViewModel.patchOptionsPrefs,
-                        viewModel = patchOptionsViewModel
                     )
                 },
                 rightContent = {

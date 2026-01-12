@@ -1878,4 +1878,40 @@ class PatchBundleRepository(
             updatedAt = System.currentTimeMillis()
         )
     }
+
+    // ========================================
+// PatchBundleRepository.kt - ДОДАТИ ЦЕЙ МЕТОД
+// ========================================
+
+    /**
+     * Rename a bundle
+     * @param bundle The bundle to rename
+     * @param newName The new display name
+     */
+    suspend fun renameBundle(bundle: PatchBundleSource, newName: String) {
+        val trimmedName = newName.trim()
+        if (trimmedName.isEmpty()) return
+
+        // Use existing setDisplayName method
+        val result = setDisplayName(bundle.uid, trimmedName)
+
+        when (result) {
+            DisplayNameUpdateResult.SUCCESS -> {
+                // Success - UI will update automatically via Flow
+            }
+            DisplayNameUpdateResult.DUPLICATE -> {
+                withContext(Dispatchers.Main) {
+                    app.toast(app.getString(R.string.morphe_bundle_rename_duplicate, trimmedName))
+                }
+            }
+            DisplayNameUpdateResult.NOT_FOUND -> {
+                withContext(Dispatchers.Main) {
+                    app.toast(app.getString(R.string.morphe_bundle_not_found))
+                }
+            }
+            DisplayNameUpdateResult.NO_CHANGE -> {
+                // No change needed
+            }
+        }
+    }
 }
