@@ -1,8 +1,10 @@
 package app.revanced.manager.ui.component.morphe.home
 
+import android.annotation.SuppressLint
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.History
@@ -11,6 +13,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -22,6 +25,7 @@ import app.revanced.manager.ui.component.settings.Changelog
 import app.revanced.manager.util.relativeTime
 import app.revanced.manager.util.simpleMessage
 
+@SuppressLint("ConfigurationScreenWidthHeight")
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeBundleChangelogSheet(
@@ -45,19 +49,39 @@ fun HomeBundleChangelogSheet(
     ModalBottomSheet(
         onDismissRequest = onDismissRequest,
         sheetState = sheetState,
+        dragHandle = {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Surface(
+                    modifier = Modifier.size(width = 32.dp, height = 4.dp),
+                    shape = RoundedCornerShape(2.dp),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                ) {}
+                Spacer(modifier = Modifier.height(16.dp))
+            }
+        },
         containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
         contentWindowInsets = { WindowInsets.systemBars },
         scrimColor = Color.Transparent
     ) {
-        when (val current = state) {
-            BundleChangelogState.Loading -> BundleChangelogSheetLoading()
-            is BundleChangelogState.Error -> BundleChangelogSheetError(
-                error = current.throwable,
-                onRetry = {}
-            )
-            is BundleChangelogState.Success -> BundleChangelogSheetContent(
-                asset = current.asset
-            )
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(max = LocalConfiguration.current.screenHeightDp.dp * 0.9f)
+        ) {
+            when (val current = state) {
+                BundleChangelogState.Loading -> BundleChangelogSheetLoading()
+                is BundleChangelogState.Error -> BundleChangelogSheetError(
+                    error = current.throwable,
+                    onRetry = {}
+                )
+                is BundleChangelogState.Success -> BundleChangelogSheetContent(
+                    asset = current.asset
+                )
+            }
         }
     }
 }

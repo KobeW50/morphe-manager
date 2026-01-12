@@ -10,6 +10,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -103,11 +105,15 @@ fun HomeBundlePatchOptionsSheet(
                 ) {}
                 Spacer(modifier = Modifier.height(16.dp))
             }
-        }
+        },
+        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        contentWindowInsets = { WindowInsets.systemBars },
+        scrimColor = Color.Transparent
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .heightIn(max = LocalConfiguration.current.screenHeightDp.dp * 0.9f)
                 .padding(horizontal = 16.dp)
         ) {
             // Header

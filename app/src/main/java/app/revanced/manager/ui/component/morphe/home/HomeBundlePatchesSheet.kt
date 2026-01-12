@@ -17,6 +17,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -48,6 +49,20 @@ fun HomeBundlePatchesSheet(
     ModalBottomSheet(
         onDismissRequest = onDismissRequest,
         sheetState = sheetState,
+        dragHandle = {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Surface(
+                    modifier = Modifier.size(width = 32.dp, height = 4.dp),
+                    shape = RoundedCornerShape(2.dp),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                ) {}
+                Spacer(modifier = Modifier.height(16.dp))
+            }
+        },
         containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
         contentWindowInsets = { WindowInsets.systemBars },
         scrimColor = Color.Transparent
@@ -55,8 +70,9 @@ fun HomeBundlePatchesSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .heightIn(max = LocalConfiguration.current.screenHeightDp.dp * 0.9f)
                 .verticalScroll(scrollState)
-                .padding(start = 24.dp, bottom = 24.dp, end = 24.dp)
+                .padding(horizontal = 16.dp)
         ) {
             // Header Content
             Column(
